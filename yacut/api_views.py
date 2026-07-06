@@ -14,7 +14,7 @@ def bad_request(e):
 
 @api_bp.errorhandler(404)
 def not_found(e):
-    return jsonify({'message': 'Ресурс не найден'}), 404
+    return jsonify({'message': 'Указанный id не найден'}), 404
 
 
 @api_bp.errorhandler(405)
@@ -24,14 +24,19 @@ def method_not_allowed(e):
 
 @api_bp.errorhandler(415)
 def unsupported_media_type(e):
-    return jsonify({'message': 'Отсутствует поле url'}), 400
+    return jsonify({'message': 'Отсутствует тело запроса'}), 400
 
 
 @api_bp.route('/id/', methods=['POST'])
 def create_short_link():
     data = request.get_json(silent=True)
-    if data is None or 'url' not in data:
-        return jsonify({'message': 'Отсутствует поле url'}), 400
+    if data is None:
+        return jsonify({'message': 'Отсутствует тело запроса'}), 400
+
+    if 'url' not in data:
+        return jsonify(
+            {'message': '"url" является обязательным полем!'}
+        ), 400
 
     original = data['url']
     custom_id = data.get('custom_id', '')
@@ -41,13 +46,23 @@ def create_short_link():
 
     if custom_id:
         if len(custom_id) > Config.MAX_CUSTOM_ID_LENGTH:
-            return jsonify({'message': 'custom_id не более 16 символов'}), 400
+            return jsonify(
+                {'message': 'Указано недопустимое имя для короткой ссылки'}
+            ), 400
         if custom_id == 'files':
-            return jsonify({'message': 'Имя занято'}), 400
+            return jsonify(
+                {'message': ('Предложенный вариант '
+                             'короткой ссылки уже существует.')}
+            ), 400
         if not re.match(r'^[a-zA-Z0-9]+$', custom_id):
-            return jsonify({'message': 'Только латинские буквы и цифры'}), 400
+            return jsonify(
+                {'message': 'Указано недопустимое имя для короткой ссылки'}
+            ), 400
         if URLMap.query.filter_by(short=custom_id).first():
-            return jsonify({'message': 'Имя занято'}), 400
+            return jsonify(
+                {'message': ('Предложенный вариант '
+                             'короткой ссылки уже существует.')}
+            ), 400
         short_id = custom_id
     else:
         short_id = get_unique_short_id()
@@ -59,8 +74,7 @@ def create_short_link():
 
     return jsonify({
         'url': original,
-        'short_link': short_url,
-        'short_id': short_id
+        'short_link': short_url
     }), 201
 
 
@@ -68,5 +82,5 @@ def create_short_link():
 def get_original_link(short_id):
     url_map = URLMap.query.filter_by(short=short_id).first()
     if not url_map:
-        return jsonify({'message': 'Ссылка не найдена'}), 404
+        return jsonify({'message': 'Указанный id не найден'}), 404
     return jsonify({'url': url_map.original})
