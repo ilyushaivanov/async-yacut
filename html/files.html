@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Загрузка файлов - YaCut{% endblock %}
+
+{% block content %}
+  <h1 class="text-center">Загрузка файлов на Яндекс.Диск</h1>
+  <p class="text-center my-4">
+    Выберите файлы для загрузки. После успешной загрузки будут созданы короткие ссылки для скачивания.
+  </p>
+
+  <div class="container">
+    <div class="row my-3">
+      <div class="col-sm">
+      </div>
+      <div class="col-sm">
+        <form method="POST" enctype="multipart/form-data">
+          {{ form.hidden_tag() }}
+          <div class="mb-3">
+            {{ form.files(class="form-control", multiple=True) }}
+            {% for error in form.files.errors %}
+              <p><span style="color:red">{{ error }}</span></p>
+            {% endfor %}
+          </div>
+          {{ form.submit(class="btn btn-primary") }}
+        </form>
+      </div>
+      <div class="col-sm">
+      </div>
+    </div>
+  </div>
+
+  {% if uploaded_files %}
+    <div class="container mt-4">
+      <h3 class="text-center">Загруженные файлы</h3>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Имя файла</th>
+            <th>Короткая ссылка для скачивания</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in uploaded_files %}
+            <tr>
+              <td>{{ item.name }}</td>
+              <td><a href="{{ item.short_url }}">{{ item.short_url }}</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endblock %}
