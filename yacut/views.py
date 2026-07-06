@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 from flask import Blueprint, render_template, redirect, url_for, flash
 from .forms import LinkForm, FileForm
 from .models import URLMap, get_unique_short_id
@@ -6,6 +7,12 @@ from . import db
 from .services import upload_file_to_disk
 
 bp = Blueprint('main', __name__)
+
+
+def run_async_coro(coro):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(asyncio.run, coro)
+        return future.result()
 
 
 @bp.route('/', methods=['GET', 'POST'])
@@ -41,16 +48,14 @@ def files_page():
         files = form.files.data
         if files:
             tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
-            try:
-                results = asyncio.run(asyncio.gather(*tasks))
-            except Exception:
-                results = [None] * len(files)
 
-            if all(r is None for r in results):
+            try:
+                results = run_async_coro(asyncio.gather(*tasks))
+            except Exception as e:
                 results = [
-                    f'https://fake-disk-link.com/{f.filename}'
-                    for f in files
+                    f'https://fake-disk-link.com/{f.filename}' for f in files
                 ]
+                flash(f'Ошибка при загрузке: {str(e)}', 'danger')
 
             for filename, disk_link in zip(
                 [f.filename for f in files], results
@@ -71,17 +76,21 @@ def files_page():
         else:
             flash('Файлы не выбраны', 'danger')
 
-    # Чтение всех файлов из БД для отображения на странице
     file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
     uploaded_files = []
     for rec in file_records:
         short_url = url_for(
             'main.redirect_to', short_id=rec.short, _external=True
         )
-        uploaded_files.append({'name': rec.filename, 'short_url': short_url})
+        uploaded_files.append({
+            'name': rec.filename,
+            'short_url': short_url
+        })
 
     return render_template(
-        'files.html', form=form, uploaded_files=uploaded_files
+        'files.html',
+        form=form,
+        uploaded_files=uploaded_files
     )
 
 
