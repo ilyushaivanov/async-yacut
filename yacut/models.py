@@ -10,6 +10,7 @@ class URLMap(db.Model):
     original = db.Column(db.String(256), nullable=False)
     short = db.Column(db.String(16), unique=True, nullable=False, index=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    filename = db.Column(db.String(256), nullable=True)
 
     def to_dict(self):
         return {

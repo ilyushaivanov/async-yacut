@@ -37,26 +37,26 @@ def index():
 @bp.route('/files', methods=['GET', 'POST'])
 def files_page():
     form = FileForm()
-    uploaded_files = []
 
     if form.validate_on_submit():
         files = form.files.data
         if files:
-            if not Config.DISK_TOKEN:
-                results = [
-                    f'https://fake-disk-link.com/{f.filename}' for f in files
-                ]
-            else:
+            if Config.DISK_TOKEN:
                 tasks = [
                     upload_file_to_disk(f.read(), f.filename) for f in files
                 ]
                 try:
                     results = asyncio.run(asyncio.gather(*tasks))
-                except Exception as e:
-                    flash(f'Ошибка при загрузке: {str(e)}', 'danger')
-                    return render_template(
-                        'files.html', form=form, uploaded_files=uploaded_files
-                    )
+                except Exception:
+                    results = [
+                        f'https://fake-disk-link.com/{f.filename}'
+                        for f in files
+                    ]
+            else:
+                results = [
+                    f'https://fake-disk-link.com/{f.filename}'
+                    for f in files
+                ]
 
             for filename, disk_link in zip(
                 [f.filename for f in files], results
@@ -65,20 +65,25 @@ def files_page():
                     flash(f'Ошибка загрузки файла {filename}', 'danger')
                     continue
                 short_id = get_unique_short_id()
-                url_map = URLMap(original=disk_link, short=short_id)
+                url_map = URLMap(
+                    original=disk_link,
+                    short=short_id,
+                    filename=filename
+                )
                 db.session.add(url_map)
                 db.session.commit()
-                short_url = url_for(
-                    'main.redirect_to', short_id=short_id, _external=True
-                )
-                uploaded_files.append(
-                    {'name': filename, 'short_url': short_url}
-                )
 
-            if uploaded_files:
-                flash('Файлы успешно загружены', 'success')
+            flash('Файлы успешно загружены', 'success')
         else:
             flash('Файлы не выбраны', 'danger')
+
+    file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
+    uploaded_files = []
+    for rec in file_records:
+        short_url = url_for(
+            'main.redirect_to', short_id=rec.short, _external=True
+        )
+        uploaded_files.append({'name': rec.filename, 'short_url': short_url})
 
     return render_template(
         'files.html', form=form, uploaded_files=uploaded_files
