@@ -4,6 +4,7 @@ from .forms import LinkForm, FileForm
 from .models import URLMap, get_unique_short_id
 from . import db
 from .services import upload_file_to_disk
+from .settings import Config
 
 bp = Blueprint('main', __name__)
 
@@ -41,14 +42,21 @@ def files_page():
     if form.validate_on_submit():
         files = form.files.data
         if files:
-            tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
-            try:
-                results = asyncio.run(asyncio.gather(*tasks))
-            except Exception as e:
-                flash(f'Ошибка при загрузке: {str(e)}', 'danger')
-                return render_template(
-                    'files.html', form=form, uploaded_files=uploaded_files
-                )
+            if not Config.DISK_TOKEN:
+                results = [
+                    f'https://fake-disk-link.com/{f.filename}' for f in files
+                ]
+            else:
+                tasks = [
+                    upload_file_to_disk(f.read(), f.filename) for f in files
+                ]
+                try:
+                    results = asyncio.run(asyncio.gather(*tasks))
+                except Exception as e:
+                    flash(f'Ошибка при загрузке: {str(e)}', 'danger')
+                    return render_template(
+                        'files.html', form=form, uploaded_files=uploaded_files
+                    )
 
             for filename, disk_link in zip(
                 [f.filename for f in files], results
@@ -71,9 +79,6 @@ def files_page():
                 flash('Файлы успешно загружены', 'success')
         else:
             flash('Файлы не выбраны', 'danger')
-    else:
-        # Отладка: вывод ошибок формы
-        flash(f'Ошибки формы: {form.errors}', 'danger')
 
     return render_template(
         'files.html', form=form, uploaded_files=uploaded_files
