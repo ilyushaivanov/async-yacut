@@ -7,6 +7,26 @@ import re
 api_bp = Blueprint('api', __name__)
 
 
+@api_bp.errorhandler(400)
+def bad_request(e):
+    return jsonify({'error': 'Некорректный запрос'}), 400
+
+
+@api_bp.errorhandler(404)
+def not_found(e):
+    return jsonify({'error': 'Ресурс не найден'}), 404
+
+
+@api_bp.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({'error': 'Метод не разрешён'}), 405
+
+
+@api_bp.errorhandler(415)
+def unsupported_media_type(e):
+    return jsonify({'error': 'Требуется Content-Type: application/json'}), 415
+
+
 @api_bp.route('/id/', methods=['POST'])
 def create_short_link():
     data = request.get_json()
