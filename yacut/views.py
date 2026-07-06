@@ -20,6 +20,8 @@ async def get_upload_url(session, path):
 
 
 async def upload_file_to_disk(file_data, filename):
+    if not Config.DISK_TOKEN:
+        return None
     path = f'/yacut/{filename}'
     async with aiohttp.ClientSession() as session:
         upload_url = await get_upload_url(session, path)
@@ -28,19 +30,12 @@ async def upload_file_to_disk(file_data, filename):
         async with session.put(upload_url, data=file_data) as resp:
             if resp.status not in (200, 201):
                 return None
-        publish_url = (
-            f'https://cloud-api.yandex.net/v1/disk/resources/publish?path='
-            f'{path}'
-        )
+        publish_url = f'https://cloud-api.yandex.net/v1/disk/resources/publish?path={path}'
         headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
         async with session.put(publish_url, headers=headers) as resp:
             if resp.status not in (200, 201):
                 return None
-        download_url = (
-            f'https://cloud-api.yandex.net/v1/disk/resources/download?path='
-            f'{path}'
-        )
-        headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
+        download_url = f'https://cloud-api.yandex.net/v1/disk/resources/download?path={path}'
         async with session.get(download_url, headers=headers) as resp:
             if resp.status != 200:
                 return None
@@ -59,7 +54,7 @@ def index():
         existing = URLMap.query.filter_by(short=short_id).first()
         if existing:
             flash(
-                'Предложенный вариант короткой ссылки уже существует.',
+                'Предложенный вариант короткой ссылки уже существует.', 
                 'danger'
             )
         else:
@@ -78,13 +73,20 @@ def files_page():
     form = FileForm()
     uploaded_files = []
     if form.validate_on_submit():
+        if not Config.DISK_TOKEN:
+            flash('Токен Яндекс.Диска не настроен', 'danger')
+            return render_template(
+                'files.html', form=form, uploaded_files=uploaded_files
+            )
         files = form.files.data
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
-        results = loop.run_until_complete(asyncio.gather(*tasks))
-        loop.close()
-
+        try:
+            results = asyncio.run(asyncio.gather(*tasks))
+        except Exception as e:
+            flash(f'Ошибка при загрузке: {str(e)}', 'danger')
+            return render_template(
+                'files.html', form=form, uploaded_files=uploaded_files
+            )
         for filename, disk_link in zip([f.filename for f in files], results):
             if disk_link is None:
                 flash(f'Ошибка загрузки файла {filename}', 'danger')
