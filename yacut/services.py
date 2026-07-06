@@ -14,7 +14,6 @@ async def get_upload_url(session, path):
 
 async def upload_file_to_disk(file_data, filename):
     if not Config.DISK_TOKEN:
-        # Возвращаем фиктивную ссылку для разработки и тестов (без токена)
         return f'https://fake-disk-link.com/{filename}'
     path = f'/yacut/{filename}'
     async with aiohttp.ClientSession() as session:

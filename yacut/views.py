@@ -37,30 +37,47 @@ def index():
 def files_page():
     form = FileForm()
     uploaded_files = []
+
     if form.validate_on_submit():
         files = form.files.data
-        tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
-        try:
-            results = asyncio.run(asyncio.gather(*tasks))
-        except Exception as e:
-            flash(f'Ошибка при загрузке: {str(e)}', 'danger')
-            return render_template(
-                'files.html', form=form, uploaded_files=uploaded_files
-            )
-        for filename, disk_link in zip([f.filename for f in files], results):
-            if disk_link is None:
-                flash(f'Ошибка загрузки файла {filename}', 'danger')
-                continue
-            short_id = get_unique_short_id()
-            url_map = URLMap(original=disk_link, short=short_id)
-            db.session.add(url_map)
-            db.session.commit()
-            short_url = url_for(
-                'main.redirect_to', short_id=short_id, _external=True
-            )
-            uploaded_files.append({'name': filename, 'short_url': short_url})
-        if uploaded_files:
-            flash('Файлы успешно загружены', 'success')
+        if files:
+            tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
+            try:
+                results = asyncio.run(asyncio.gather(*tasks))
+            except Exception as e:
+                flash(f'Ошибка при загрузке: {str(e)}', 'danger')
+                return render_template(
+                    'files.html', form=form, uploaded_files=uploaded_files
+                )
+
+            for filename, disk_link in zip(
+                [f.filename for f in files], results
+            ):
+                if disk_link is None:
+                    flash(f'Ошибка загрузки файла {filename}', 'danger')
+                    continue
+                short_id = get_unique_short_id()
+                url_map = URLMap(original=disk_link, short=short_id)
+                db.session.add(url_map)
+                db.session.commit()
+                short_url = url_for(
+                    'main.redirect_to', short_id=short_id, _external=True
+                )
+                uploaded_files.append(
+                    {'name': filename, 'short_url': short_url}
+                )
+
+            if uploaded_files:
+                flash('Файлы успешно загружены', 'success')
+        else:
+            flash('Файлы не выбраны', 'danger')
+    else:
+        # Отладка: вывод ошибок формы
+        flash(f'Ошибки формы: {form.errors}', 'danger')
+
+    return render_template(
+        'files.html', form=form, uploaded_files=uploaded_files
+    )
 
 
 @bp.route('/<short_id>')
