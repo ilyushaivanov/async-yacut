@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify, url_for
-from .models import URLMap, get_unique_short_id
-from . import db
-from .settings import Config
 import re
+
+from flask import Blueprint, jsonify, request, url_for
+
+from . import db
+from .models import URLMap, get_unique_short_id
+from .settings import Config
 
 api_bp = Blueprint('api', __name__)
 

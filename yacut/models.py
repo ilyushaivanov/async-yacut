@@ -1,6 +1,6 @@
-from datetime import datetime
 import random
 import string
+from datetime import datetime
 
 from yacut import db
 

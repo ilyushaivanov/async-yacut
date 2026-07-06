@@ -1,8 +1,10 @@
 import asyncio
-from flask import Blueprint, render_template, redirect, flash, request
-from .forms import LinkForm, FileForm
-from .models import URLMap, get_unique_short_id
+
+from flask import Blueprint, flash, redirect, render_template, request
+
 from . import db
+from .forms import FileForm, LinkForm
+from .models import URLMap, get_unique_short_id
 from .services import upload_file_to_disk
 
 bp = Blueprint('main', __name__)

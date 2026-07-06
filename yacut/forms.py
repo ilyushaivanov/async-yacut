@@ -1,11 +1,12 @@
+import re
+
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, MultipleFileField
-from wtforms.validators import (
-    DataRequired, URL, Length, ValidationError, Optional
-)
+from wtforms import MultipleFileField, StringField, SubmitField
+from wtforms.validators import (URL, DataRequired, Length, Optional,
+                                ValidationError)
+
 from .models import URLMap
 from .settings import Config
-import re
 
 
 class LinkForm(FlaskForm):
