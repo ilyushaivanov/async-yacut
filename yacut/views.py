@@ -1,6 +1,5 @@
 import asyncio
-import concurrent.futures
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, render_template, redirect, flash, request
 from .forms import LinkForm, FileForm
 from .models import URLMap, get_unique_short_id
 from . import db
@@ -27,9 +26,7 @@ def index():
             url_map = URLMap(original=original, short=short_id)
             db.session.add(url_map)
             db.session.commit()
-            short_url = url_for(
-                'main.redirect_to', short_id=short_id, _external=True
-            )
+            short_url = request.host_url + short_id
             flash(f'Ваша короткая ссылка: {short_url}', 'success')
     return render_template('index.html', form=form, short_url=short_url)
 
@@ -41,16 +38,17 @@ def files_page():
     if form.validate_on_submit():
         files = form.files.data
         if files:
-            # Подготовка списка корутин
-            async def load_all():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
                 tasks = [
                     upload_file_to_disk(f.read(), f.filename) for f in files
                 ]
-                return await asyncio.gather(*tasks, return_exceptions=True)
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, load_all())
-                results = future.result()
+                results = loop.run_until_complete(
+                    asyncio.gather(*tasks, return_exceptions=True)
+                )
+            finally:
+                loop.close()
 
             for filename, result in zip([f.filename for f in files], results):
                 if isinstance(result, Exception) or result is None:
@@ -72,9 +70,7 @@ def files_page():
     file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
     uploaded_files = []
     for rec in file_records:
-        short_url = url_for(
-            'main.redirect_to', short_id=rec.short, _external=True
-        )
+        short_url = request.host_url + rec.short
         uploaded_files.append({'name': rec.filename, 'short_url': short_url})
 
     return render_template(
