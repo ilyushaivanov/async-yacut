@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 from flask import Blueprint, render_template, redirect, url_for, flash
 from .forms import LinkForm, FileForm
 from .models import URLMap, get_unique_short_id
@@ -40,16 +41,16 @@ def files_page():
     if form.validate_on_submit():
         files = form.files.data
         if files:
-            tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
+            # Подготовка списка корутин
+            async def load_all():
+                tasks = [
+                    upload_file_to_disk(f.read(), f.filename) for f in files
+                ]
+                return await asyncio.gather(*tasks, return_exceptions=True)
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                results = loop.run_until_complete(
-                    asyncio.gather(*tasks, return_exceptions=True)
-                )
-            finally:
-                loop.close()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, load_all())
+                results = future.result()
 
             for filename, result in zip([f.filename for f in files], results):
                 if isinstance(result, Exception) or result is None:
@@ -64,7 +65,6 @@ def files_page():
                 )
                 db.session.add(url_map)
                 db.session.commit()
-
             flash('Файлы успешно загружены', 'success')
         else:
             flash('Файлы не выбраны', 'danger')
@@ -75,15 +75,10 @@ def files_page():
         short_url = url_for(
             'main.redirect_to', short_id=rec.short, _external=True
         )
-        uploaded_files.append({
-            'name': rec.filename,
-            'short_url': short_url
-        })
+        uploaded_files.append({'name': rec.filename, 'short_url': short_url})
 
     return render_template(
-        'files.html',
-        form=form,
-        uploaded_files=uploaded_files
+        'files.html', form=form, uploaded_files=uploaded_files
     )
 
 
