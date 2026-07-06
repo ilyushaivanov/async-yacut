@@ -43,3 +43,6 @@ def create_app():
         ), 500
 
     return app
+
+
+app = create_app()
