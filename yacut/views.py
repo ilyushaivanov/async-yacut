@@ -39,8 +39,8 @@ def files_page():
     uploaded_files = []
     if form.validate_on_submit():
         files = form.files.data
+        tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
         try:
-            tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
             results = asyncio.run(asyncio.gather(*tasks))
         except Exception as e:
             flash(f'Ошибка при загрузке: {str(e)}', 'danger')
@@ -61,11 +61,6 @@ def files_page():
             uploaded_files.append({'name': filename, 'short_url': short_url})
         if uploaded_files:
             flash('Файлы успешно загружены', 'success')
-    else:
-        flash(f'Ошибки формы: {form.errors}', 'danger')
-    return render_template(
-        'files.html', form=form, uploaded_files=uploaded_files
-    )
 
 
 @bp.route('/<short_id>')

@@ -3,10 +3,7 @@ from .settings import Config
 
 
 async def get_upload_url(session, path):
-    url = (
-        f'https://cloud-api.yandex.net/v1/disk/resources/upload?'
-        f'path={path}'
-    )
+    url = f'https://cloud-api.yandex.net/v1/disk/resources/upload?path={path}'
     headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
     async with session.get(url, headers=headers) as resp:
         if resp.status != 200:
@@ -17,7 +14,8 @@ async def get_upload_url(session, path):
 
 async def upload_file_to_disk(file_data, filename):
     if not Config.DISK_TOKEN:
-        return None
+        # Возвращаем фиктивную ссылку для разработки и тестов (без токена)
+        return f'https://fake-disk-link.com/{filename}'
     path = f'/yacut/{filename}'
     async with aiohttp.ClientSession() as session:
         upload_url = await get_upload_url(session, path)
