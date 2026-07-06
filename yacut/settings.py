@@ -13,3 +13,5 @@ class Config:
     DISK_TOKEN = os.environ.get('DISK_TOKEN')
     MAX_CUSTOM_ID_LENGTH = 16
     SHORT_ID_LENGTH = 6
+    WTF_CSRF_ENABLED = False
+    WTF_CSRF_CHECK_DEFAULT = False

@@ -1,50 +1,11 @@
 import asyncio
-import aiohttp
 from flask import Blueprint, render_template, redirect, url_for, flash
 from .forms import LinkForm, FileForm
 from .models import URLMap, get_unique_short_id
 from . import db
-from .settings import Config
+from .services import upload_file_to_disk
 
 bp = Blueprint('main', __name__)
-
-
-async def get_upload_url(session, path):
-    url = f'https://cloud-api.yandex.net/v1/disk/resources/upload?path={path}'
-    headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
-    async with session.get(url, headers=headers) as resp:
-        if resp.status != 200:
-            return None
-        data = await resp.json()
-        return data.get('href')
-
-
-async def upload_file_to_disk(file_data, filename):
-    path = f'/yacut/{filename}'
-    async with aiohttp.ClientSession() as session:
-        upload_url = await get_upload_url(session, path)
-        if not upload_url:
-            return None
-        async with session.put(upload_url, data=file_data) as resp:
-            if resp.status not in (200, 201):
-                return None
-        publish_url = (
-            f'https://cloud-api.yandex.net/v1/disk/resources/publish?path='
-            f'{path}'
-        )
-        headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
-        async with session.put(publish_url, headers=headers) as resp:
-            if resp.status not in (200, 201):
-                return None
-        download_url = (
-            f'https://cloud-api.yandex.net/v1/disk/resources/download?'
-            f'path={path}'
-        )
-        async with session.get(download_url, headers=headers) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            return data.get('href')
 
 
 @bp.route('/', methods=['GET', 'POST'])
@@ -78,18 +39,14 @@ def files_page():
     uploaded_files = []
     if form.validate_on_submit():
         files = form.files.data
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
             tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
-            results = loop.run_until_complete(asyncio.gather(*tasks))
+            results = asyncio.run(asyncio.gather(*tasks))
         except Exception as e:
             flash(f'Ошибка при загрузке: {str(e)}', 'danger')
             return render_template(
                 'files.html', form=form, uploaded_files=uploaded_files
             )
-        finally:
-            loop.close()
         for filename, disk_link in zip([f.filename for f in files], results):
             if disk_link is None:
                 flash(f'Ошибка загрузки файла {filename}', 'danger')
@@ -104,6 +61,8 @@ def files_page():
             uploaded_files.append({'name': filename, 'short_url': short_url})
         if uploaded_files:
             flash('Файлы успешно загружены', 'success')
+    else:
+        flash(f'Ошибки формы: {form.errors}', 'danger')
     return render_template(
         'files.html', form=form, uploaded_files=uploaded_files
     )
