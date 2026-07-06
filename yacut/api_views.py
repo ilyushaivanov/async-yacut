@@ -9,44 +9,45 @@ api_bp = Blueprint('api', __name__)
 
 @api_bp.errorhandler(400)
 def bad_request(e):
-    return jsonify({'error': 'Некорректный запрос'}), 400
+    return jsonify({'message': 'Некорректный запрос'}), 400
 
 
 @api_bp.errorhandler(404)
 def not_found(e):
-    return jsonify({'error': 'Ресурс не найден'}), 404
+    return jsonify({'message': 'Ресурс не найден'}), 404
 
 
 @api_bp.errorhandler(405)
 def method_not_allowed(e):
-    return jsonify({'error': 'Метод не разрешён'}), 405
+    return jsonify({'message': 'Метод не разрешён'}), 405
 
 
 @api_bp.errorhandler(415)
 def unsupported_media_type(e):
-    return jsonify({'error': 'Требуется Content-Type: application/json'}), 415
+    return jsonify({'message': 'Отсутствует поле url'}), 400
 
 
 @api_bp.route('/id/', methods=['POST'])
 def create_short_link():
-    data = request.get_json()
-    if not data or 'url' not in data:
-        return jsonify({'error': 'Отсутствует поле url'}), 400
+    data = request.get_json(silent=True)
+    if data is None or 'url' not in data:
+        return jsonify({'message': 'Отсутствует поле url'}), 400
+
     original = data['url']
     custom_id = data.get('custom_id', '')
 
     if not original.startswith(('http://', 'https://')):
-        return jsonify({'error': 'Некорректный URL'}), 400
+        return jsonify({'message': 'Некорректный URL'}), 400
 
     if custom_id:
         if len(custom_id) > Config.MAX_CUSTOM_ID_LENGTH:
-            return jsonify({'error': 'custom_id не более 16 символов'}), 400
+            return jsonify({'message': 'custom_id не более 16 символов'}), 400
         if custom_id == 'files':
-            return jsonify({'error': 'Имя занято'}), 400
+            return jsonify({'message': 'Имя занято'}), 400
         if not re.match(r'^[a-zA-Z0-9]+$', custom_id):
-            return jsonify({'error': 'Только латинские буквы и цифры'}), 400
+            return jsonify({'message': 'Только латинские буквы и цифры'}), 400
         if URLMap.query.filter_by(short=custom_id).first():
-            return jsonify({'error': 'Имя занято'}), 400
+            return jsonify({'message': 'Имя занято'}), 400
         short_id = custom_id
     else:
         short_id = get_unique_short_id()
@@ -67,5 +68,5 @@ def create_short_link():
 def get_original_link(short_id):
     url_map = URLMap.query.filter_by(short=short_id).first()
     if not url_map:
-        return jsonify({'error': 'Ссылка не найдена'}), 404
+        return jsonify({'message': 'Ссылка не найдена'}), 404
     return jsonify({'url': url_map.original})
