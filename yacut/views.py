@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 from flask import Blueprint, render_template, redirect, url_for, flash
 from .forms import LinkForm, FileForm
 from .models import URLMap, get_unique_short_id
@@ -7,12 +6,6 @@ from . import db
 from .services import upload_file_to_disk
 
 bp = Blueprint('main', __name__)
-
-
-def run_async_coro(coro):
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(asyncio.run, coro)
-        return future.result()
 
 
 @bp.route('/', methods=['GET', 'POST'])
@@ -49,20 +42,20 @@ def files_page():
         if files:
             tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
 
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                results = run_async_coro(asyncio.gather(*tasks))
-            except Exception as e:
-                results = [
-                    f'https://fake-disk-link.com/{f.filename}' for f in files
-                ]
-                flash(f'Ошибка при загрузке: {str(e)}', 'danger')
+                results = loop.run_until_complete(
+                    asyncio.gather(*tasks, return_exceptions=True)
+                )
+            finally:
+                loop.close()
 
-            for filename, disk_link in zip(
-                [f.filename for f in files], results
-            ):
-                if disk_link is None:
+            for filename, result in zip([f.filename for f in files], results):
+                if isinstance(result, Exception) or result is None:
                     flash(f'Ошибка загрузки файла {filename}', 'danger')
                     continue
+                disk_link = result
                 short_id = get_unique_short_id()
                 url_map = URLMap(
                     original=disk_link,
