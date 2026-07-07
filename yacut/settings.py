@@ -17,4 +17,6 @@ class Config:
     SHORT_ID_LENGTH = 6
     WTF_CSRF_ENABLED = False
     WTF_CSRF_CHECK_DEFAULT = False
+    FILES_PREFIX = 'files'
     FORBIDDEN_SHORT_NAMES = ['files']
+    REGEX_FOR_SHORT_ID = r'^[a-zA-Z0-9]+$'

@@ -3,15 +3,6 @@ from http import HTTPStatus
 from flask import jsonify, render_template, request
 
 
-def handle_api_error(e):
-    """Обработчик всех API‑исключений."""
-    if request.path.startswith('/api/'):
-        return jsonify({'message': e.message}), e.status_code
-    return render_template(
-        'error.html', error_code=e.status_code,
-        error_message=e.message), e.status_code
-
-
 def bad_request(e):
     if request.path.startswith('/api/'):
         return jsonify(
@@ -32,18 +23,6 @@ def not_found(e):
         'error.html', error_code=HTTPStatus.NOT_FOUND,
         error_message='Страница не найдена'
     ), HTTPStatus.NOT_FOUND
-
-
-def method_not_allowed(e):
-    return jsonify(
-        {'message': 'Метод не разрешён'}
-    ), HTTPStatus.METHOD_NOT_ALLOWED
-
-
-def unsupported_media_type(e):
-    return jsonify(
-        {'message': 'Отсутствует тело запроса'}
-    ), HTTPStatus.BAD_REQUEST
 
 
 def internal_error(e):

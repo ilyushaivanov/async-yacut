@@ -21,7 +21,7 @@ class LinkForm(FlaskForm):
             Optional(),
             Length(max=Config.MAX_CUSTOM_ID_LENGTH,
                    message=f'Не более {Config.MAX_CUSTOM_ID_LENGTH} символов'),
-            Regexp(r'^[a-zA-Z0-9]+$',
+            Regexp(Config.REGEX_FOR_SHORT_ID,
                    message='Допустимы только латинские буквы и цифры.')
         ]
     )

@@ -6,6 +6,7 @@ from .exceptions import ValidationError
 from .forms import FileForm, LinkForm
 from .models import URLMap
 from .services import upload_file_to_disk
+from .settings import Config
 
 bp = Blueprint('main', __name__)
 
@@ -23,49 +24,52 @@ def index():
 
     try:
         url_map = URLMap.create(original, custom_id if custom_id else None)
-        short_url = url_for(
-            'main.redirect_to', short_id=url_map.short, _external=True
-        )
-        flash(f'Ваша короткая ссылка: {short_url}', 'success')
     except ValidationError as e:
         flash(e.message, 'danger')
+    else:
+        short_url = url_map.to_dict()['short_link']
+        flash(f'Ваша короткая ссылка: {short_url}', 'success')
 
     return render_template('index.html', form=form, short_url=short_url)
 
 
-@bp.route('/files', methods=['GET', 'POST'])
+@bp.route(f'/{Config.FILES_PREFIX}', methods=['GET', 'POST'])
 def files_page():
     form = FileForm()
 
-    if form.validate_on_submit():
-        files = form.files.data
-        if files:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                tasks = [
-                    upload_file_to_disk(f.read(), f.filename) for f in files
-                ]
-                results = loop.run_until_complete(
-                    asyncio.gather(*tasks, return_exceptions=True)
-                )
-            finally:
-                loop.close()
+    if not form.validate_on_submit():
+        return _render_files_page(form)
 
-            for filename, result in zip([f.filename for f in files], results):
-                if isinstance(result, Exception) or result is None:
-                    flash(f'Ошибка загрузки файла {filename}', 'danger')
-                    continue
-                disk_link = result
-                try:
-                    URLMap.create(disk_link, filename=filename)
-                except ValidationError as e:
-                    flash(e.message, 'danger')
-                    continue
-            flash('Файлы успешно загружены', 'success')
-        else:
-            flash('Файлы не выбраны', 'danger')
+    files = form.files.data
+    if not files:
+        flash('Файлы не выбраны', 'danger')
+        return _render_files_page(form)
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        tasks = [upload_file_to_disk(f.read(), f.filename) for f in files]
+        results = loop.run_until_complete(
+            asyncio.gather(*tasks, return_exceptions=True)
+        )
+    finally:
+        loop.close()
+
+    for filename, result in zip([f.filename for f in files], results):
+        if isinstance(result, Exception) or result is None:
+            flash(f'Ошибка загрузки файла {filename}', 'danger')
+            continue
+        disk_link = result
+        try:
+            URLMap.create(disk_link, filename=filename)
+        except ValidationError as e:
+            flash(e.message, 'danger')
+            continue
+    flash('Файлы успешно загружены', 'success')
+    return _render_files_page(form)
+
+
+def _render_files_page(form):
     file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
     uploaded_files = []
     for rec in file_records:
@@ -73,7 +77,6 @@ def files_page():
             'main.redirect_to', short_id=rec.short, _external=True
         )
         uploaded_files.append({'name': rec.filename, 'short_url': short_url})
-
     return render_template(
         'files.html', form=form, uploaded_files=uploaded_files
     )

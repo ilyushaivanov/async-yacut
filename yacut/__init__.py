@@ -1,10 +1,8 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-from .error_handlers import (bad_request, handle_api_error, internal_error,
-                             method_not_allowed, not_found,
-                             unsupported_media_type)
-from .exceptions import APIError
+from .error_handlers import bad_request, internal_error, not_found
+from .exceptions import NotFoundError, ValidationError
 from .settings import Config
 
 db = SQLAlchemy()
@@ -30,12 +28,17 @@ def create_app():
     with app.app_context():
         db.create_all()
 
-    app.register_error_handler(APIError, handle_api_error)
     app.register_error_handler(400, bad_request)
     app.register_error_handler(404, not_found)
-    app.register_error_handler(405, method_not_allowed)
-    app.register_error_handler(415, unsupported_media_type)
     app.register_error_handler(500, internal_error)
+
+    @app.errorhandler(ValidationError)
+    def handle_validation_error(e):
+        return jsonify(e.to_dict()), e.status_code
+
+    @app.errorhandler(NotFoundError)
+    def handle_not_found_error(e):
+        return jsonify(e.to_dict()), e.status_code
 
     return app
 
