@@ -1,6 +1,10 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
+from .error_handlers import (bad_request, handle_api_error, internal_error,
+                             method_not_allowed, not_found,
+                             unsupported_media_type)
+from .exceptions import APIError
 from .settings import Config
 
 db = SQLAlchemy()
@@ -22,26 +26,16 @@ def create_app():
 
     from . import api_views
     app.register_blueprint(api_views.api_bp, url_prefix='/api')
+
     with app.app_context():
         db.create_all()
 
-    @app.errorhandler(404)
-    def page_not_found(e):
-        if request.path.startswith('/api/'):
-            return jsonify({'message': 'Указанный id не найден'}), 404
-        return render_template(
-            'error.html', error_code=404, error_message='Страница не найдена'
-        ), 404
-
-    @app.errorhandler(500)
-    def internal_error(e):
-        if request.path.startswith('/api/'):
-            return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
-        return render_template(
-            'error.html',
-            error_code=500,
-            error_message='Внутренняя ошибка сервера'
-        ), 500
+    app.register_error_handler(APIError, handle_api_error)
+    app.register_error_handler(400, bad_request)
+    app.register_error_handler(404, not_found)
+    app.register_error_handler(405, method_not_allowed)
+    app.register_error_handler(415, unsupported_media_type)
+    app.register_error_handler(500, internal_error)
 
     return app
 

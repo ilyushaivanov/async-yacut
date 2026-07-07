@@ -1,88 +1,43 @@
 import re
-
-from flask import Blueprint, jsonify, request, url_for
-
-from . import db
-from .models import URLMap, get_unique_short_id
+from http import HTTPStatus
+from flask import Blueprint, jsonify, request
+from .models import URLMap
 from .settings import Config
+from .exceptions import ValidationError, NotFoundError
 
 api_bp = Blueprint('api', __name__)
-
-
-@api_bp.errorhandler(400)
-def bad_request(e):
-    return jsonify({'message': 'Некорректный запрос'}), 400
-
-
-@api_bp.errorhandler(404)
-def not_found(e):
-    return jsonify({'message': 'Указанный id не найден'}), 404
-
-
-@api_bp.errorhandler(405)
-def method_not_allowed(e):
-    return jsonify({'message': 'Метод не разрешён'}), 405
-
-
-@api_bp.errorhandler(415)
-def unsupported_media_type(e):
-    return jsonify({'message': 'Отсутствует тело запроса'}), 400
 
 
 @api_bp.route('/id/', methods=['POST'])
 def create_short_link():
     data = request.get_json(silent=True)
     if data is None:
-        return jsonify({'message': 'Отсутствует тело запроса'}), 400
-
+        raise ValidationError('Отсутствует тело запроса')
     if 'url' not in data:
-        return jsonify(
-            {'message': '"url" является обязательным полем!'}
-        ), 400
-
+        raise ValidationError('"url" является обязательным полем!')
     original = data['url']
     custom_id = data.get('custom_id', '')
 
     if not original.startswith(('http://', 'https://')):
-        return jsonify({'message': 'Некорректный URL'}), 400
+        raise ValidationError('Некорректный URL')
 
     if custom_id:
         if len(custom_id) > Config.MAX_CUSTOM_ID_LENGTH:
-            return jsonify(
-                {'message': 'Указано недопустимое имя для короткой ссылки'}
-            ), 400
-        if custom_id == 'files':
-            return jsonify(
-                {'message': ('Предложенный вариант '
-                             'короткой ссылки уже существует.')}
-            ), 400
+            raise ValidationError(
+                'Указано недопустимое имя для короткой ссылки'
+            )
         if not re.match(r'^[a-zA-Z0-9]+$', custom_id):
-            return jsonify(
-                {'message': 'Указано недопустимое имя для короткой ссылки'}
-            ), 400
-        if URLMap.query.filter_by(short=custom_id).first():
-            return jsonify(
-                {'message': ('Предложенный вариант '
-                             'короткой ссылки уже существует.')}
-            ), 400
-        short_id = custom_id
-    else:
-        short_id = get_unique_short_id()
+            raise ValidationError(
+                'Указано недопустимое имя для короткой ссылки'
+            )
 
-    url_map = URLMap(original=original, short=short_id)
-    db.session.add(url_map)
-    db.session.commit()
-    short_url = url_for('main.redirect_to', short_id=short_id, _external=True)
-
-    return jsonify({
-        'url': original,
-        'short_link': short_url
-    }), 201
+    url_map = URLMap.create(original, custom_id if custom_id else None)
+    return jsonify(url_map.to_dict()), HTTPStatus.CREATED
 
 
 @api_bp.route('/id/<short_id>/', methods=['GET'])
 def get_original_link(short_id):
-    url_map = URLMap.query.filter_by(short=short_id).first()
-    if not url_map:
-        return jsonify({'message': 'Указанный id не найден'}), 404
-    return jsonify({'url': url_map.original})
+    url_map = URLMap.get_by_short(short_id)
+    if url_map is None:
+        raise NotFoundError('Указанный id не найден')
+    return jsonify({'url': url_map.original}), HTTPStatus.OK

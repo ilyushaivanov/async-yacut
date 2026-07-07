@@ -6,6 +6,7 @@ from .settings import Config
 
 
 async def get_upload_url(session, path):
+    """Получает URL для загрузки файла на Яндекс.Диск."""
     encoded_path = quote(path, safe='')
     url = (
         f'https://cloud-api.yandex.net/v1/disk/resources/upload?'
@@ -20,6 +21,9 @@ async def get_upload_url(session, path):
 
 
 async def upload_file_to_disk(file_data, filename):
+    """
+    Загружает файл на Яндекс.Диск и возвращает прямую ссылку для скачивания.
+    """
     path = f'/yacut/{filename}'
     async with aiohttp.ClientSession() as session:
         upload_url = await get_upload_url(session, path)

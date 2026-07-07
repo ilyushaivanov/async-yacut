@@ -1,10 +1,10 @@
 import asyncio
 
-from flask import Blueprint, flash, redirect, render_template, request
+from flask import Blueprint, flash, redirect, render_template, url_for
 
-from . import db
+from .exceptions import ValidationError
 from .forms import FileForm, LinkForm
-from .models import URLMap, get_unique_short_id
+from .models import URLMap
 from .services import upload_file_to_disk
 
 bp = Blueprint('main', __name__)
@@ -14,22 +14,22 @@ bp = Blueprint('main', __name__)
 def index():
     form = LinkForm()
     short_url = None
-    if form.validate_on_submit():
-        original = form.original_link.data
-        custom_id = form.custom_id.data
-        short_id = custom_id if custom_id else get_unique_short_id()
-        existing = URLMap.query.filter_by(short=short_id).first()
-        if existing:
-            flash(
-                'Предложенный вариант короткой ссылки уже существует.',
-                'danger'
-            )
-        else:
-            url_map = URLMap(original=original, short=short_id)
-            db.session.add(url_map)
-            db.session.commit()
-            short_url = request.host_url + short_id
-            flash(f'Ваша короткая ссылка: {short_url}', 'success')
+
+    if not form.validate_on_submit():
+        return render_template('index.html', form=form, short_url=short_url)
+
+    original = form.original_link.data
+    custom_id = form.custom_id.data
+
+    try:
+        url_map = URLMap.create(original, custom_id if custom_id else None)
+        short_url = url_for(
+            'main.redirect_to', short_id=url_map.short, _external=True
+        )
+        flash(f'Ваша короткая ссылка: {short_url}', 'success')
+    except ValidationError as e:
+        flash(e.message, 'danger')
+
     return render_template('index.html', form=form, short_url=short_url)
 
 
@@ -57,14 +57,11 @@ def files_page():
                     flash(f'Ошибка загрузки файла {filename}', 'danger')
                     continue
                 disk_link = result
-                short_id = get_unique_short_id()
-                url_map = URLMap(
-                    original=disk_link,
-                    short=short_id,
-                    filename=filename
-                )
-                db.session.add(url_map)
-                db.session.commit()
+                try:
+                    URLMap.create(disk_link, filename=filename)
+                except ValidationError as e:
+                    flash(e.message, 'danger')
+                    continue
             flash('Файлы успешно загружены', 'success')
         else:
             flash('Файлы не выбраны', 'danger')
@@ -72,7 +69,9 @@ def files_page():
     file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
     uploaded_files = []
     for rec in file_records:
-        short_url = request.host_url + rec.short
+        short_url = url_for(
+            'main.redirect_to', short_id=rec.short, _external=True
+        )
         uploaded_files.append({'name': rec.filename, 'short_url': short_url})
 
     return render_template(
