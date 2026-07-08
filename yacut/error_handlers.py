@@ -34,3 +34,13 @@ def internal_error(e):
         'error.html', error_code=HTTPStatus.INTERNAL_SERVER_ERROR,
         error_message='Внутренняя ошибка сервера'
     ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def handle_validation_error(e):
+    """Обработчик кастомного исключения ValidationError."""
+    return jsonify(e.to_dict()), e.status_code
+
+
+def handle_not_found_error(e):
+    """Обработчик кастомного исключения NotFoundError."""
+    return jsonify(e.to_dict()), e.status_code

@@ -23,6 +23,9 @@ class URLMap(db.Model):
     filename = db.Column(db.String(Config.MAX_ORIGINAL_LENGTH), nullable=True)
 
     def to_dict(self):
+        """
+        Преобразует запись в словарь для API-ответа.
+        """
         return {
             'url': self.original,
             'short_link': url_for(
@@ -30,17 +33,35 @@ class URLMap(db.Model):
             )
         }
 
+    def to_file_dict(self):
+        """Возвращает словарь для отображения в списке файлов."""
+        return {
+            'name': self.filename,
+            'short_url': url_for(
+                'main.redirect_to', short_id=self.short, _external=True
+            )
+        }
+
     @staticmethod
     def generate_short_id(length=Config.SHORT_ID_LENGTH):
+        """
+        Генерирует случайную строку заданной длины из латинских букв и цифр.
+        """
         chars = string.ascii_letters + string.digits
         return ''.join(random.choices(chars, k=length))
 
     @staticmethod
     def get_by_short(short_id):
+        """
+        Находит запись по короткому идентификатору.
+        """
         return URLMap.query.filter_by(short=short_id).first()
 
     @staticmethod
     def get_unique_short_id(length=Config.SHORT_ID_LENGTH):
+        """
+        Генерирует уникальный короткий идентификатор.
+        """
         while True:
             short_id = URLMap.generate_short_id(length)
             if short_id in Config.FORBIDDEN_SHORT_NAMES or URLMap.get_by_short(
@@ -51,17 +72,21 @@ class URLMap(db.Model):
 
     @staticmethod
     def _validate_custom_id(custom_id):
-        if custom_id in Config.FORBIDDEN_SHORT_NAMES:
-            raise ValidationError(
-                'Предложенный вариант короткой ссылки уже существует.'
-            )
-        if URLMap.get_by_short(custom_id):
+        """
+        Проверяет, что пользовательский идентификатор не запрещён и не занят.
+        """
+        if custom_id in Config.FORBIDDEN_SHORT_NAMES or URLMap.get_by_short(
+            custom_id
+        ):
             raise ValidationError(
                 'Предложенный вариант короткой ссылки уже существует.'
             )
 
     @staticmethod
     def create(original, custom_id=None, filename=None):
+        """
+        Создаёт новую запись в БД.
+        """
         if custom_id:
             URLMap._validate_custom_id(custom_id)
             short_id = custom_id

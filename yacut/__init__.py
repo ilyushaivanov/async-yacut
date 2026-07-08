@@ -1,7 +1,9 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
-from .error_handlers import bad_request, internal_error, not_found
+from .error_handlers import (bad_request, handle_not_found_error,
+                             handle_validation_error, internal_error,
+                             not_found)
 from .exceptions import NotFoundError, ValidationError
 from .settings import Config
 
@@ -31,14 +33,8 @@ def create_app():
     app.register_error_handler(400, bad_request)
     app.register_error_handler(404, not_found)
     app.register_error_handler(500, internal_error)
-
-    @app.errorhandler(ValidationError)
-    def handle_validation_error(e):
-        return jsonify(e.to_dict()), e.status_code
-
-    @app.errorhandler(NotFoundError)
-    def handle_not_found_error(e):
-        return jsonify(e.to_dict()), e.status_code
+    app.register_error_handler(ValidationError, handle_validation_error)
+    app.register_error_handler(NotFoundError, handle_not_found_error)
 
     return app
 

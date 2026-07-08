@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from urllib.parse import quote
 
 import aiohttp
@@ -14,7 +15,7 @@ async def get_upload_url(session, path):
     )
     headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
     async with session.get(url, headers=headers) as resp:
-        if resp.status != 200:
+        if resp.status != HTTPStatus.OK:
             return None
         data = await resp.json()
         return data.get('href')
@@ -30,7 +31,7 @@ async def upload_file_to_disk(file_data, filename):
         if not upload_url:
             return None
         async with session.put(upload_url, data=file_data) as resp:
-            if resp.status not in (200, 201):
+            if resp.status not in (HTTPStatus.OK, HTTPStatus.CREATED):
                 return None
         download_url = (
             f'https://cloud-api.yandex.net/v1/disk/resources/download?'
@@ -38,7 +39,7 @@ async def upload_file_to_disk(file_data, filename):
         )
         headers = {'Authorization': f'OAuth {Config.DISK_TOKEN}'}
         async with session.get(download_url, headers=headers) as resp:
-            if resp.status != 200:
+            if resp.status != HTTPStatus.OK:
                 return None
             data = await resp.json()
             return data.get('href')
