@@ -4,14 +4,15 @@ from datetime import datetime
 
 from flask import url_for
 
-from yacut import db
-
+from . import db
 from .exceptions import ValidationError
 from .settings import Config
 
 
 class URLMap(db.Model):
-    """Модель для хранения соответствия между ссылками."""
+    """
+    Модель для хранения соответствия между ссылками.
+    """
 
     id = db.Column(db.Integer, primary_key=True)
     original = db.Column(db.String(Config.MAX_ORIGINAL_LENGTH), nullable=False)
@@ -23,9 +24,7 @@ class URLMap(db.Model):
     filename = db.Column(db.String(Config.MAX_ORIGINAL_LENGTH), nullable=True)
 
     def to_dict(self):
-        """
-        Преобразует запись в словарь для API-ответа.
-        """
+        """Возвращает словарь для API-ответа (создание короткой ссылки)."""
         return {
             'url': self.original,
             'short_link': url_for(
@@ -33,54 +32,30 @@ class URLMap(db.Model):
             )
         }
 
-    def to_file_dict(self):
-        """Возвращает словарь для отображения в списке файлов."""
-        return {
-            'name': self.filename,
-            'short_url': url_for(
-                'main.redirect_to', short_id=self.short, _external=True
-            )
-        }
-
     @staticmethod
     def generate_short_id(length=Config.SHORT_ID_LENGTH):
-        """
-        Генерирует случайную строку заданной длины из латинских букв и цифр.
-        """
+        """Генерирует случайную строку заданной длины из букв и цифр."""
         chars = string.ascii_letters + string.digits
         return ''.join(random.choices(chars, k=length))
 
     @staticmethod
+    def _is_forbidden(short_id):
+        """Проверяет, входит ли короткий идентификатор в список запрещённых."""
+        return short_id in Config.FORBIDDEN_SHORT_NAMES
+
+    @staticmethod
     def get_by_short(short_id):
-        """
-        Находит запись по короткому идентификатору.
-        """
+        """Находит запись по короткому идентификатору."""
         return URLMap.query.filter_by(short=short_id).first()
 
     @staticmethod
     def get_unique_short_id(length=Config.SHORT_ID_LENGTH):
-        """
-        Генерирует уникальный короткий идентификатор.
-        """
+        """Генерирует уникальный короткий идентификатор."""
         while True:
             short_id = URLMap.generate_short_id(length)
-            if short_id in Config.FORBIDDEN_SHORT_NAMES or URLMap.get_by_short(
-                short_id
-            ):
+            if URLMap._is_forbidden(short_id) or URLMap.get_by_short(short_id):
                 continue
             return short_id
-
-    @staticmethod
-    def _validate_custom_id(custom_id):
-        """
-        Проверяет, что пользовательский идентификатор не запрещён и не занят.
-        """
-        if custom_id in Config.FORBIDDEN_SHORT_NAMES or URLMap.get_by_short(
-            custom_id
-        ):
-            raise ValidationError(
-                'Предложенный вариант короткой ссылки уже существует.'
-            )
 
     @staticmethod
     def create(original, custom_id=None, filename=None):
@@ -88,7 +63,12 @@ class URLMap(db.Model):
         Создаёт новую запись в БД.
         """
         if custom_id:
-            URLMap._validate_custom_id(custom_id)
+            if URLMap._is_forbidden(
+                custom_id
+            ) or URLMap.get_by_short(custom_id):
+                raise ValidationError(
+                    'Предложенный вариант короткой ссылки уже существует.'
+                )
             short_id = custom_id
         else:
             short_id = URLMap.get_unique_short_id()

@@ -1,16 +1,16 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
-from .error_handlers import (bad_request, handle_not_found_error,
-                             handle_validation_error, internal_error,
-                             not_found)
-from .exceptions import NotFoundError, ValidationError
+from .error_handlers import init_error_handlers
 from .settings import Config
 
 db = SQLAlchemy()
 
 
 def create_app():
+    """
+    Создание приложения Flask.
+    """
     app = Flask(
         __name__,
         template_folder='../html',
@@ -30,11 +30,7 @@ def create_app():
     with app.app_context():
         db.create_all()
 
-    app.register_error_handler(400, bad_request)
-    app.register_error_handler(404, not_found)
-    app.register_error_handler(500, internal_error)
-    app.register_error_handler(ValidationError, handle_validation_error)
-    app.register_error_handler(NotFoundError, handle_not_found_error)
+    init_error_handlers(app)
 
     return app
 

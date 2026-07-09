@@ -1,6 +1,6 @@
 import asyncio
 
-from flask import Blueprint, flash, redirect, render_template
+from flask import Blueprint, flash, redirect, render_template, url_for
 
 from .exceptions import ValidationError
 from .forms import FileForm, LinkForm
@@ -13,6 +13,9 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/', methods=['GET', 'POST'])
 def index():
+    """
+    Главная страница с формой для сокращения ссылок.
+    """
     form = LinkForm()
     short_url = None
 
@@ -35,6 +38,9 @@ def index():
 
 @bp.route(f'/{Config.FILES_PREFIX}', methods=['GET', 'POST'])
 def files_page():
+    """
+    Страница загрузки файлов на Яндекс.Диск.
+    """
     form = FileForm()
 
     if not form.validate_on_submit():
@@ -70,8 +76,19 @@ def files_page():
 
 
 def _render_files_page(form):
+    """
+    Вспомогательная функция для рендеринга страницы /files.
+    """
     file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
-    uploaded_files = [rec.to_file_dict() for rec in file_records]
+    uploaded_files = [
+        {
+            'name': rec.filename,
+            'short_url': url_for(
+                'main.redirect_to', short_id=rec.short, _external=True
+            )
+        }
+        for rec in file_records
+    ]
     return render_template(
         'files.html', form=form, uploaded_files=uploaded_files
     )
@@ -79,5 +96,8 @@ def _render_files_page(form):
 
 @bp.route('/<short_id>')
 def redirect_to(short_id):
+    """
+    Перенаправляет по короткой ссылке на оригинальный URL.
+    """
     url_map = URLMap.query.filter_by(short=short_id).first_or_404()
     return redirect(url_map.original)
