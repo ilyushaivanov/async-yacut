@@ -1,6 +1,6 @@
 import asyncio
 
-from flask import Blueprint, flash, redirect, render_template, url_for
+from flask import Blueprint, flash, redirect, render_template
 
 from .exceptions import ValidationError
 from .forms import FileForm, LinkForm
@@ -82,12 +82,11 @@ def _render_files_page(form):
     file_records = URLMap.query.filter(URLMap.filename.isnot(None)).all()
     uploaded_files = [
         {
-            'name': rec.filename,
-            'short_url': url_for(
-                'main.redirect_to', short_id=rec.short, _external=True
-            )
+            'name': item['name'],
+            'short_url': item['short_link']
         }
         for rec in file_records
+        for item in [rec.to_dict()]
     ]
     return render_template(
         'files.html', form=form, uploaded_files=uploaded_files
